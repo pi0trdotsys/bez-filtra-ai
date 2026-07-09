@@ -15,7 +15,7 @@ const app = express()
 
 app.set('trust proxy', true)
 const ollama = new Ollama({ host: process.env.OLLAMA_URL || 'http://localhost:11434' })
-const DEFAULT_MODEL = process.env.DEFAULT_MODEL || 'dolphin3:8b'
+const DEFAULT_MODEL = process.env.DEFAULT_MODEL || 'huihui_ai/qwen2.5-abliterate:14b'
 
 // Opcje generowania per model - balans między jakością a szybkością
 function modelOptions(model: string): Record<string, unknown> {
