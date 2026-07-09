@@ -18,8 +18,8 @@ import {
 import { describeModel } from '@/lib/models'
 
 const ALLOWED_MODELS = [
-  'dolphin-pl:latest',
   'huihui_ai/qwen2.5-abliterate:14b',
+  'dolphin-pl:latest',
 ]
 const DEFAULT_MODEL = ALLOWED_MODELS[0]
 
