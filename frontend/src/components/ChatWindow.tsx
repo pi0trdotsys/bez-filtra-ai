@@ -78,6 +78,10 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
 
   const [selectedModel, setSelectedModel] = useState(() => {
     const saved = localStorage.getItem('ai-chat-model')
+    if (saved === 'dolphin-pl:latest') {
+      localStorage.setItem('ai-chat-model', DEFAULT_MODEL)
+      return DEFAULT_MODEL
+    }
     return saved && ALLOWED_MODELS.includes(saved) ? saved : DEFAULT_MODEL
   })
 
