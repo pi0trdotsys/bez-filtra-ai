@@ -12,6 +12,8 @@ import { Agent, setGlobalDispatcher } from 'undici'
 setGlobalDispatcher(new Agent({ headersTimeout: 0, bodyTimeout: 0 }))
 
 const app = express()
+
+app.set('trust proxy', true)
 const ollama = new Ollama({ host: process.env.OLLAMA_URL || 'http://localhost:11434' })
 const DEFAULT_MODEL = process.env.DEFAULT_MODEL || 'dolphin3:8b'
 
