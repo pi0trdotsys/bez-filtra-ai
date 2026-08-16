@@ -1,4 +1,18 @@
 services:
+  # Rozmowy + statystyki (tokeny, tok/s, zużycie energii/wody) - jedno źródło
+  # prawdy zamiast plików JSONL na dysku. Bez rezerwacji GPU, więc zawsze
+  # startuje - nie jest za żadnym profilem.
+  postgres:
+    image: postgres:16-alpine
+    container_name: ai-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-aichat}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-aichat}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
   # Kontener ollama + rezerwacja GPU nvidia to CAŁKOWICIE OPCJONALNA ścieżka
   # dla hostów z kartą NVIDIA - stąd `profiles: [gpu]`. Bez aktywnego profilu
   # `docker compose up` w ogóle nie próbuje tworzyć/startować tego serwisu,
@@ -47,10 +61,11 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - ACCESS_PASSWORD=${ACCESS_PASSWORD}
       - FRONTEND_URL=${FRONTEND_URL}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-aichat}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aichat}
     ports:
       - "3001:3001"
-    volumes:
-      - ./logs:/app/logs
+    depends_on:
+      - postgres
     # UWAGA: celowo bez `depends_on: - ollama` - ten serwis jest za profilem
     # "gpu" i Compose twardo błądzi ("service depends on undefined service"),
     # jeśli nieprofilowany serwis zależy od profilowanego, a profil nie jest
@@ -69,3 +84,4 @@ services:
 
 volumes:
   ollama_data:
+  postgres_data:

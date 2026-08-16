@@ -107,6 +107,7 @@ JWT_SECRET=<losowy_ciąg_znaków>
 ACCESS_PASSWORD=<twoje_hasło>
 FRONTEND_URL=*
 DEFAULT_MODEL=dolphin-pl:latest
+POSTGRES_PASSWORD=<losowy_ciąg_znaków>
 ```
 
 ### 2. GPU (opcjonalnie, ale polecane)
@@ -201,18 +202,28 @@ Skrypt pobiera nowy kod, stash'uje lokalne zmiany jako backup i przebudowuje sta
 | Frontend | 5173 | publiczny (przez Cloudflare) |
 | Backend | 3001 | tylko lokalnie |
 | Ollama | 11434 | tylko lokalnie |
+| Postgres | 5432 | tylko wewnątrz sieci Dockera (bez mapowania na hosta) |
 
 ---
 
 ## Logi
 
-```bash
-# Czytelny log rozmów
-tail -f logs/conversations.log
+Rozmowy + statystyki (tokeny, tok/s, zużycie energii i wody) trafiają do tabeli `conversation_logs` w Postgresie zamiast plików na dysku - łatwiej to filtrować, agregować i robić na tym staty.
 
-# Czyszczenie nieodpowiednich wpisów
+```bash
+# Ostatnie 20 rozmów
+docker compose exec postgres psql -U aichat -d aichat \
+  -c "SELECT ts, model, left(question,60) AS question, tps FROM conversation_logs ORDER BY ts DESC LIMIT 20;"
+
+# Średni tok/s i zużycie energii per model
+docker compose exec postgres psql -U aichat -d aichat \
+  -c "SELECT model, round(avg(tps),1) AS avg_tps, round(sum(energy_kwh)::numeric,4) AS total_kwh FROM conversation_logs GROUP BY model ORDER BY total_kwh DESC;"
+
+# Czyszczenie nieodpowiednich wpisów (dry-run + potwierdzenie + backup do logs/)
 ./clean-logs.sh
 ```
+
+Migrujesz z wcześniejszej wersji, która pisała do `logs/conversations.jsonl`? Uruchom raz `./migrate-logs-to-postgres.sh`, żeby zaimportować historię sprzed zmiany.
 
 ---
 

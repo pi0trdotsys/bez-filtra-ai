@@ -3,9 +3,8 @@ import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import jwt from 'jsonwebtoken'
 import { Ollama } from 'ollama'
-import { appendFile, mkdir } from 'fs/promises'
-import { dirname } from 'path'
 import { Agent, setGlobalDispatcher } from 'undici'
+import { initDb, logConversation, type ChatStats } from './db'
 
 // Wyłącz timeouty po stronie klienta HTTP (fetch używany przez Ollamę),
 // żeby długie generacje na wolnym CPU nigdy nie były przerywane.
@@ -42,16 +41,6 @@ const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD!
 
 const log = (msg: string) => console.log(`[${new Date().toISOString()}] ${msg}`)
 
-interface ChatStats {
-  wallMs: number
-  loadMs: number
-  promptTok: number
-  promptMs: number
-  genTok: number
-  genSec: number
-  tps: number
-}
-
 // Czytelne podsumowanie metryk - tłumaczy liczby na język ludzki
 const buildSummary = (s: ChatStats): string => {
   const sec = (ms: number) => (ms / 1000).toFixed(1)
@@ -79,47 +68,6 @@ const buildSummary = (s: ChatStats): string => {
   parts.push(`⚡ ${energyKWh.toFixed(5)} kWh (orient.)`)
   parts.push(`💧 ${(waterL * 1000).toFixed(1)} ml wody (orient.)`)
   return parts.join(' · ')
-}
-
-const CONVO_LOG = process.env.CONVO_LOG || '/app/logs/conversations.jsonl'
-const READABLE_LOG = CONVO_LOG.replace(/\.jsonl$/, '.log')
-
-interface ConvoRecord {
-  ts: string
-  ip?: string
-  model: string
-  question: string
-  answer: string
-  stats?: { promptTok: number; genTok: number; tps: number }
-  footprint?: { responseTimeMs: number; energyKWh: number; waterL: number; powerWatts: number }
-  summary?: string
-  error?: string
-}
-
-// Czytelny, wieloliniowy zapis jednej rozmowy (dla człowieka)
-const formatReadable = (r: ConvoRecord): string => {
-  const date = r.ts.replace('T', ' ').replace(/\..*$/, '')
-  const head = `🕒 ${date}   📦 ${r.model}   🌐 ${r.ip ?? '-'}`
-  const answer = r.answer || (r.error ? `[BŁĄD: ${r.error}]` : '')
-  let foot = ''
-  if (r.stats) {
-    const parts = [`${r.stats.promptTok}→${r.stats.genTok} tok`, `${r.stats.tps} tok/s`]
-    if (r.footprint) parts.push(`${Math.round(r.footprint.responseTimeMs / 1000)}s`)
-    foot = `\n\n📊 ${parts.join(' · ')}`
-  }
-  return `${'═'.repeat(60)}\n${head}\n\n❓ ${r.question}\n\n💬 ${answer}${foot}\n\n`
-}
-
-const logConversation = async (record: ConvoRecord) => {
-  try {
-    await mkdir(dirname(CONVO_LOG), { recursive: true })
-    // JSONL - źródło prawdy dla narzędzi i filtrowania
-    await appendFile(CONVO_LOG, JSON.stringify(record) + '\n')
-    // .log - czytelna wersja dla człowieka
-    await appendFile(READABLE_LOG, formatReadable(record))
-  } catch (err) {
-    log(`✗ Nie udało się zapisać rozmowy: ${err instanceof Error ? err.message : String(err)}`)
-  }
 }
 
 app.use(cors({ origin: process.env.FRONTEND_URL || '*' }))
@@ -368,10 +316,17 @@ app.get('/api/models', requireAuth, async (_req, res) => {
   }
 })
 
-const server = app.listen(3001, () => console.log('Backend działa na porcie 3001'))
+// Czekamy na Postgres (z retry), zanim zaczniemy przyjmować ruch - inaczej
+// pierwsze rozmowy tuż po starcie mogłyby się nie zalogować (tabela jeszcze
+// nie istnieje). Sam czat i tak działa niezależnie od logowania.
+initDb()
+  .catch(err => log(`✗ Postgres: rezygnuję po serii nieudanych prób - ${err instanceof Error ? err.message : String(err)}`))
+  .finally(() => {
+    const server = app.listen(3001, () => console.log('Backend działa na porcie 3001'))
 
-// Brak limitów czasu - każde zapytanie musi otrzymać odpowiedź, choćby po kilku minutach
-server.requestTimeout = 0
-server.headersTimeout = 0
-server.timeout = 0
-server.keepAliveTimeout = 0
+    // Brak limitów czasu - każde zapytanie musi otrzymać odpowiedź, choćby po kilku minutach
+    server.requestTimeout = 0
+    server.headersTimeout = 0
+    server.timeout = 0
+    server.keepAliveTimeout = 0
+  })

@@ -107,6 +107,7 @@ JWT_SECRET=<random_string>
 ACCESS_PASSWORD=<your_password>
 FRONTEND_URL=*
 DEFAULT_MODEL=dolphin-pl:latest
+POSTGRES_PASSWORD=<random_string>
 ```
 
 ### 2. GPU (optional, but recommended)
@@ -201,18 +202,28 @@ The script pulls new code, stashes local changes as a backup, and rebuilds the s
 | Frontend | 5173 | public (through Cloudflare) |
 | Backend | 3001 | local only |
 | Ollama | 11434 | local only |
+| Postgres | 5432 | Docker network only (no host port mapping) |
 
 ---
 
 ## Logs
 
-```bash
-# Human-readable conversation log
-tail -f logs/conversations.log
+Conversations + stats (tokens, tok/s, energy and water usage) go into a `conversation_logs` table in Postgres instead of files on disk - much easier to filter, aggregate, and build stats on top of.
 
-# Clean up inappropriate entries
+```bash
+# Last 20 conversations
+docker compose exec postgres psql -U aichat -d aichat \
+  -c "SELECT ts, model, left(question,60) AS question, tps FROM conversation_logs ORDER BY ts DESC LIMIT 20;"
+
+# Average tok/s and energy usage per model
+docker compose exec postgres psql -U aichat -d aichat \
+  -c "SELECT model, round(avg(tps),1) AS avg_tps, round(sum(energy_kwh)::numeric,4) AS total_kwh FROM conversation_logs GROUP BY model ORDER BY total_kwh DESC;"
+
+# Clean up inappropriate entries (dry-run + confirmation + backup into logs/)
 ./clean-logs.sh
 ```
+
+Migrating from an older version that wrote to `logs/conversations.jsonl`? Run `./migrate-logs-to-postgres.sh` once to import the history from before the switch.
 
 ---
 
