@@ -111,9 +111,15 @@ DEFAULT_MODEL=dolphin-pl:latest
 
 ### 2. GPU (opcjonalnie, ale polecane)
 
-Jeśli masz kartę NVIDIA - zainstaluj [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) i gotowe. `docker-compose.yml` już ma skonfigurowaną sekcję GPU.
+Jeśli masz kartę NVIDIA - zainstaluj [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), dopisz do `.env`:
 
-Na hoście zupełnie bez GPU serwis `ollama` w `docker-compose.yml` nigdy realnie nie wystartuje (utknie w stanie `Created` - to normalne). W takim wypadku uruchom Ollamę natywnie na hoście i wskaż na nią backend przez `docker-compose.override.yml`:
+```env
+COMPOSE_PROFILES=gpu
+```
+
+i gotowe - dockerowy serwis `ollama` jest schowany za profilem `gpu` właśnie po to, żeby domyślnie (bez tej zmiennej) `docker compose up` w ogóle go nie ruszał.
+
+**Na hoście zupełnie bez GPU nic nie rób** - bez `COMPOSE_PROFILES=gpu` w `.env` serwis `ollama` nie jest nawet tworzony, więc redeploy nie ma szans wywalić się na brakującym sterowniku nvidia. Zamiast niego uruchom Ollamę natywnie na hoście i wskaż na nią backend przez `docker-compose.override.yml`:
 
 ```yaml
 services:

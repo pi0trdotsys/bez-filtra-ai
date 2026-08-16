@@ -111,9 +111,15 @@ DEFAULT_MODEL=dolphin-pl:latest
 
 ### 2. GPU (optional, but recommended)
 
-If you have an NVIDIA card - install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) and you're done. `docker-compose.yml` already has the GPU section configured.
+If you have an NVIDIA card - install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), then add to `.env`:
 
-On a host with no GPU at all, the `ollama` service in `docker-compose.yml` will never actually start (it'll sit stuck in `Created` - that's expected). In that case, run Ollama natively on the host instead, and point the backend at it via `docker-compose.override.yml`:
+```env
+COMPOSE_PROFILES=gpu
+```
+
+and you're done - the dockerized `ollama` service sits behind the `gpu` profile precisely so that, by default (without this variable), `docker compose up` never touches it at all.
+
+**On a host with no GPU, do nothing here** - without `COMPOSE_PROFILES=gpu` in `.env`, the `ollama` service isn't even created, so a redeploy can't fail on a missing nvidia driver. Run Ollama natively on the host instead, and point the backend at it via `docker-compose.override.yml`:
 
 ```yaml
 services:
