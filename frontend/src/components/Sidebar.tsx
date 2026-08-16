@@ -103,8 +103,8 @@ export function Sidebar({ isOpen, onClose, conversations, activeId, onSelect, on
                     onClick={() => { if (editingId !== c.id) onSelect(c.id) }}
                     className="group w-full flex items-center gap-1 px-3 py-2.5 rounded-lg transition-colors cursor-pointer"
                     style={{
-                      background: active ? 'rgba(167,139,250,0.15)' : 'transparent',
-                      border: active ? '0.5px solid rgba(167,139,250,0.25)' : '0.5px solid transparent',
+                      background: active ? 'rgba(var(--accent-rgb),0.15)' : 'transparent',
+                      border: active ? '0.5px solid rgba(var(--accent-rgb),0.25)' : '0.5px solid transparent',
                     }}
                   >
                     <div className="flex-1 min-w-0">
@@ -120,7 +120,7 @@ export function Sidebar({ isOpen, onClose, conversations, activeId, onSelect, on
                             if (e.key === 'Escape') setEditingId(null)
                           }}
                           className="w-full bg-transparent border-none outline-none text-xs"
-                          style={{color:'rgba(255,255,255,0.95)',borderBottom:'0.5px solid rgba(167,139,250,0.5)'}}
+                          style={{color:'rgba(255,255,255,0.95)',borderBottom:'0.5px solid rgba(var(--accent-rgb),0.5)'}}
                         />
                       ) : (
                         <p className="text-xs truncate" style={{color:'rgba(255,255,255,0.75)'}}>{c.title}</p>

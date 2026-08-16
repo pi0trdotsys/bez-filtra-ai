@@ -10,6 +10,8 @@
 [![Stack](https://img.shields.io/badge/Stack-React%20%2B%20Node%20%2B%20Ollama-60a5fa?style=for-the-badge)](#stack)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](#)
 
+🇵🇱 Polski (ten plik) · 🇬🇧 [English](README.en.md)
+
 </div>
 
 ---
@@ -38,7 +40,8 @@ Pomyśl o tym jak o prywatnym ChatGPT - ale bez cenzury, bez logowania do zewnę
 
 ## Funkcje
 
-- 🧠 **Dwa modele do wyboru** - Dolphin PL (szybki, ~10 tok/s) i Qwen 2.5 14B (mądrzejszy)
+- 🧠 **Dowolna liczba modeli** - picker pokazuje każdy model pobrany w Ollamie, nie tylko dwa wbudowane
+- 🎨 **Akcent koloru per model** - subtelny motyw (fiolet/róż/czerwień/bursztyn...) zmienia się z wybranym modelem
 - 💬 **Historia rozmów** - persystentna, zapisywana lokalnie w przeglądarce
 - 🎭 **Personas** - własne instrukcje systemowe per rozmowa
 - ⌨️ **Command Palette** (Cmd+K) - szybkie przełączanie modeli i rozmów
@@ -70,9 +73,13 @@ Pomyśl o tym jak o prywatnym ChatGPT - ale bez cenzury, bez logowania do zewnę
 | Model | Rozmiar | Szybkość | Dla kogo |
 |-------|---------|----------|----------|
 | `dolphin-pl:latest` | 5 GB | ~10-15 tok/s | Szybkie odpowiedzi, codzienne użycie |
-| `huihui_ai/qwen2.5-abliterate:14b` | 9 GB | ~4-6 tok/s | Złożone pytania, analiza, pisanie |
+| `huihui_ai/qwen2.5-abliterate:7b` | ~5 GB | ~8-12 tok/s | Złożone pytania, analiza, pisanie - bez utraty szybkości na słabszym CPU |
 
 Oba modele są w pełni **abliterated** - pozbawione mechanizmów odmowy odpowiedzi.
+
+Picker modelu w aplikacji nie jest ograniczony do tej dwójki - pokazuje **każdy model faktycznie pobrany w Ollamie** (`GET /api/models`). Chcesz dorzucić kolejny? Wystarczy `ollama pull <model>` na hoście - pojawi się w UI automatycznie, bez zmian w kodzie.
+
+Sprawdzone dodatkowo (opcjonalnie): `huihui_ai/qwen2.5-abliterate:3b/14b`, `huihui_ai/qwen3-abliterated`, `huihui_ai/dolphin3-abliterated:8b`, `huihui_ai/deepseek-r1-abliterated:8b` (model rozumujący), `SpeakLeash/bielik-4.5b-v3.0-instruct:Q8_0` (polski, nie abliterowany).
 
 ---
 
@@ -81,7 +88,7 @@ Oba modele są w pełni **abliterated** - pozbawione mechanizmów odmowy odpowie
 ### Wymagania
 
 - Docker + Docker Compose
-- 16 GB RAM (dla modelu 14B)
+- 8 GB RAM (dla modelu 7B), 16 GB zalecane przy pracy równoległej z innymi usługami
 - GPU NVIDIA z min. 4 GB VRAM (opcjonalne, ale znacznie przyspiesza)
 
 ### 1. Klonuj i skonfiguruj
@@ -105,6 +112,17 @@ DEFAULT_MODEL=dolphin-pl:latest
 ### 2. GPU (opcjonalnie, ale polecane)
 
 Jeśli masz kartę NVIDIA - zainstaluj [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) i gotowe. `docker-compose.yml` już ma skonfigurowaną sekcję GPU.
+
+Na hoście zupełnie bez GPU serwis `ollama` w `docker-compose.yml` nigdy realnie nie wystartuje (utknie w stanie `Created` - to normalne). W takim wypadku uruchom Ollamę natywnie na hoście i wskaż na nią backend przez `docker-compose.override.yml`:
+
+```yaml
+services:
+  backend:
+    environment:
+      - OLLAMA_URL=http://172.17.0.1:11434
+```
+
+(`172.17.0.1` to domyślny adres bramy mostka Dockera - adres hosta widziany z wnętrza kontenerów). Upewnij się, że sama Ollama nasłuchuje na tym interfejsie (`OLLAMA_HOST=172.17.0.1:11434` w usłudze systemd albo w środowisku `ollama serve`), a nie tylko na loopbacku.
 
 ### 3. Uruchom
 
@@ -132,9 +150,11 @@ EOF
 docker cp ~/dolphin-pl.Modelfile ollama:/tmp/dolphin-pl.Modelfile
 docker exec ollama ollama create dolphin-pl -f /tmp/dolphin-pl.Modelfile
 
-# Inteligentniejszy (opcjonalny)
-docker exec -it ollama ollama pull huihui_ai/qwen2.5-abliterate:14b
+# Inteligentniejszy, wciąż szybki na słabszym CPU (domyślny)
+docker exec -it ollama ollama pull huihui_ai/qwen2.5-abliterate:7b
 ```
+
+(Jeśli używasz natywnej Ollamy zamiast tej w Dockerze - patrz punkt 2 - zamień `docker exec -it ollama ollama pull ...` na zwykłe `ollama pull ...` na hoście, z odpowiednim `OLLAMA_HOST`.)
 
 ### 5. Cloudflare Tunnel (brak publicznego IP)
 
@@ -187,6 +207,12 @@ tail -f logs/conversations.log
 # Czyszczenie nieodpowiednich wpisów
 ./clean-logs.sh
 ```
+
+---
+
+## Sesje i logowanie
+
+Auth to jedno wspólne hasło + JWT (bez kont per-użytkownik). Token jest ważny 30 dni i cicho się odświeża, dopóki appka jest otwarta (przy starcie, co 12h i za każdym powrotem karty na pierwszy plan) - dopóki zajrzysz do apki choć raz w tym oknie, sesja praktycznie nie wygasa. Jeśli naprawdę znikniesz na dłużej, token faktycznie wygaśnie - appka wykrywa to czysto (401) i wraca na ekran logowania z jasnym komunikatem, zamiast zapętlać się na zawieszonym błędzie.
 
 ---
 

@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion'
 
 // Autorska animacja "odpowiedź w toku" - gradientowe słupki falujące jak equalizer,
-// w kolorach marki. Spójne z resztą interfejsu, nie generyczne 3 kropki.
+// w kolorze aktualnie wybranego modelu (--accent-rgb, patrz ChatWindow/lib/models.ts).
+// Spójne z resztą interfejsu, nie generyczne 3 kropki.
 export function ThinkingBars({ height = 15 }: { height?: number }) {
   const bars = [0, 1, 2, 3, 4]
   return (
@@ -21,7 +22,7 @@ export function ThinkingBars({ height = 15 }: { height?: number }) {
             height,
             borderRadius: 3,
             transformOrigin: 'center',
-            background: 'linear-gradient(180deg,#a78bfa,#60a5fa)',
+            background: 'linear-gradient(180deg,rgb(var(--accent-rgb)),rgba(var(--accent-rgb),0.4))',
           }}
         />
       ))}

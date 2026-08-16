@@ -114,7 +114,7 @@ export function CommandPalette({
         style={{
           maxWidth: 520,
           background: 'rgba(30,27,55,0.96)', backdropFilter: 'blur(24px)',
-          border: '0.5px solid rgba(167,139,250,0.3)', boxShadow: '0 24px 70px rgba(0,0,0,0.55)',
+          border: '0.5px solid rgba(var(--accent-rgb),0.3)', boxShadow: '0 24px 70px rgba(0,0,0,0.55)',
         }}
       >
         <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
@@ -142,7 +142,7 @@ export function CommandPalette({
               onMouseEnter={() => setSel(i)}
               onClick={() => activate(i)}
               className="w-full flex items-center gap-2.5 text-left rounded-xl px-3 py-2"
-              style={{ background: i === sel ? 'rgba(167,139,250,0.16)' : 'transparent' }}
+              style={{ background: i === sel ? 'rgba(var(--accent-rgb),0.16)' : 'transparent' }}
             >
               <span style={{ fontSize: 15, width: 20, textAlign: 'center' }}>{it.icon}</span>
               <span className="flex-1 min-w-0">

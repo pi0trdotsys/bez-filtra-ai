@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Akcent koloru zależny od wybranego modelu (patrz lib/models.ts / ChatWindow.tsx).
+   Domyślnie fiolet marki - JS nadpisuje na inline style rootu po wyborze modelu. */
+:root {
+  --accent-rgb: 167,139,250;
+}
+
 /* ── Dotyk: akcje chowane pod :hover nie działają na telefonie ──
    Na urządzeniach bez kursora pokazujemy je na stałe (przygaszone). */
 @media (hover: none) {
@@ -21,8 +27,8 @@
 .markdown p { margin: 0.6em 0; }
 .markdown ul, .markdown ol { margin: 0.6em 0; padding-left: 1.4em; }
 .markdown li { margin: 0.3em 0; }
-.markdown li::marker { color: rgba(167,139,250,0.7); }
-.markdown ul li::marker { color: rgba(167,139,250,0.6); }
+.markdown li::marker { color: rgba(var(--accent-rgb),0.7); }
+.markdown ul li::marker { color: rgba(var(--accent-rgb),0.6); }
 
 .markdown h1, .markdown h2, .markdown h3, .markdown h4 {
   margin: 1em 0 0.45em; font-weight: 650; line-height: 1.3;
@@ -49,8 +55,8 @@
 
 .markdown blockquote {
   margin: 0.7em 0; padding: 0.35em 1em;
-  border-left: 2.5px solid rgba(167,139,250,0.6);
-  background: rgba(167,139,250,0.06);
+  border-left: 2.5px solid rgba(var(--accent-rgb),0.6);
+  background: rgba(var(--accent-rgb),0.06);
   border-radius: 0 8px 8px 0;
   color: rgba(255,255,255,0.78);
 }
@@ -58,8 +64,8 @@
 
 /* Kod inline */
 .markdown :not(pre) > code {
-  background: rgba(167,139,250,0.14);
-  border: 0.5px solid rgba(167,139,250,0.2);
+  background: rgba(var(--accent-rgb),0.14);
+  border: 0.5px solid rgba(var(--accent-rgb),0.2);
   border-radius: 5px;
   padding: 0.12em 0.42em;
   font-size: 0.86em;
@@ -85,7 +91,7 @@
 .code-lang {
   font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: rgba(167,139,250,0.85);
+  color: rgba(var(--accent-rgb),0.85);
   font-family: ui-monospace, monospace;
 }
 .code-copy {
@@ -117,5 +123,5 @@
   border: 0.5px solid rgba(255,255,255,0.12);
   padding: 0.4em 0.7em; text-align: left;
 }
-.markdown th { background: rgba(167,139,250,0.1); font-weight: 600; color: #fff; }
+.markdown th { background: rgba(var(--accent-rgb),0.1); font-weight: 600; color: #fff; }
 .markdown tr:nth-child(even) td { background: rgba(255,255,255,0.02); }

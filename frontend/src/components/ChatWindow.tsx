@@ -7,6 +7,7 @@ import { Sidebar } from './Sidebar'
 import { PersonaPanel } from './PersonaPanel'
 import { CommandPalette } from './CommandPalette'
 import { useCompletionNotify } from '@/hooks/useCompletionNotify'
+import { useModels } from '@/hooks/useModels'
 import { ThinkingBars } from './ThinkingIndicator'
 import {
   loadConversations,
@@ -17,11 +18,10 @@ import {
 } from '@/lib/conversations'
 import { describeModel } from '@/lib/models'
 
-const ALLOWED_MODELS = [
-  'huihui_ai/qwen2.5-abliterate:14b',
-  'dolphin-pl:latest',
-]
-const DEFAULT_MODEL = ALLOWED_MODELS[0]
+// Zanim /api/models odpowie (albo gdy backend jest niedostępny) - awaryjny model,
+// zgodny z DEFAULT_MODEL w backend/src/index.ts. Realna lista wyboru to zawsze
+// to, co faktycznie pobrane w Ollamie (patrz useModels/`/api/models`).
+const FALLBACK_MODEL = 'huihui_ai/qwen2.5-abliterate:7b'
 
 const formatTime = (ms: number) => {
   const total = Math.floor(ms / 1000)
@@ -76,14 +76,23 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
   const [activeId, setActiveId] = useState<string>(boot.activeId)
   const initialMessages = boot.conversations.find(c => c.id === boot.activeId)!.messages
 
-  const [selectedModel, setSelectedModel] = useState(() => {
-    const saved = localStorage.getItem('ai-chat-model')
-    if (saved === 'dolphin-pl:latest') {
-      localStorage.setItem('ai-chat-model', DEFAULT_MODEL)
-      return DEFAULT_MODEL
+  const { models, defaultModel } = useModels()
+  const effectiveDefault = defaultModel || FALLBACK_MODEL
+
+  const [selectedModel, setSelectedModel] = useState(
+    () => localStorage.getItem('ai-chat-model') || FALLBACK_MODEL
+  )
+
+  // Gdy dojedzie realna lista pobranych modeli: jeśli zapisany wybór już nie
+  // istnieje w Ollamie (usunięty/nigdy nie pobrany), wróć do domyślnego.
+  useEffect(() => {
+    if (models.length === 0) return
+    if (!models.some(m => m.name === selectedModel)) {
+      setSelectedModel(effectiveDefault)
+      localStorage.setItem('ai-chat-model', effectiveDefault)
     }
-    return saved && ALLOWED_MODELS.includes(saved) ? saved : DEFAULT_MODEL
-  })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [models])
 
   const activeConv = conversations.find(c => c.id === activeId)
   const {
@@ -96,6 +105,12 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
     setSelectedModel(model)
     localStorage.setItem('ai-chat-model', model)
   }
+
+  // Subtelny akcent koloru zależny od wybranego modelu (fiolet=Qwen, róż=Dolphin,
+  // czerwień=DeepSeek, bursztyn=Bielik...) - patrz accentRgb w lib/models.ts.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--accent-rgb', describeModel(selectedModel).accentRgb)
+  }, [selectedModel])
 
   const health = useHealth()
   useCompletionNotify(isStreaming)
@@ -338,7 +353,7 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
             <button
               onClick={() => setModelPickerOpen(o => !o)}
               className="flex items-center gap-2 text-xs rounded-full pl-3 pr-2.5 py-1.5"
-              style={{background:'rgba(167,139,250,0.1)',border:'0.5px solid rgba(167,139,250,0.22)',color:'rgba(255,255,255,0.85)'}}
+              style={{background:'rgba(var(--accent-rgb),0.1)',border:'0.5px solid rgba(var(--accent-rgb),0.22)',color:'rgba(255,255,255,0.85)'}}
             >
               <motion.span
                 animate={health.status === 'checking' ? { opacity: [0.4,1,0.4] } : { opacity: 1 }}
@@ -361,13 +376,18 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
                     style={{
                       top:'100%', transform:'translateX(-50%)', minWidth:260,
                       background:'rgba(22,19,46,0.97)', backdropFilter:'blur(24px)',
-                      border:'0.5px solid rgba(167,139,250,0.25)', boxShadow:'0 16px 48px rgba(0,0,0,0.55)',
+                      border:'0.5px solid rgba(var(--accent-rgb),0.25)', boxShadow:'0 16px 48px rgba(0,0,0,0.55)',
                     }}
                   >
                     <div className="px-4 pt-3 pb-2" style={{borderBottom:'0.5px solid rgba(255,255,255,0.07)'}}>
                       <p style={{fontSize:10,letterSpacing:'0.14em',textTransform:'uppercase',color:'rgba(255,255,255,0.3)'}}>Wybierz model</p>
                     </div>
-                    {ALLOWED_MODELS.map(name => {
+                    {models.length === 0 && (
+                      <p className="px-4 py-4 text-center" style={{fontSize:12,color:'rgba(255,255,255,0.35)'}}>
+                        Ładowanie listy modeli…
+                      </p>
+                    )}
+                    {models.map(({ name }) => {
                       const m = describeModel(name)
                       const active = name === selectedModel
                       return (
@@ -375,13 +395,13 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
                           key={name}
                           onClick={() => { handleSelectModel(name); setModelPickerOpen(false) }}
                           className="w-full flex items-start gap-3 px-4 py-3 text-left"
-                          style={{background: active ? 'rgba(167,139,250,0.13)' : 'transparent', borderBottom:'0.5px solid rgba(255,255,255,0.05)'}}
+                          style={{background: active ? 'rgba(var(--accent-rgb),0.13)' : 'transparent', borderBottom:'0.5px solid rgba(255,255,255,0.05)'}}
                         >
                           <span style={{fontSize:20,lineHeight:1,marginTop:2}}>{m.emoji}</span>
                           <span className="flex-1 min-w-0">
                             <span className="flex items-center gap-2">
                               <span style={{fontSize:13,fontWeight:600,color:'rgba(255,255,255,0.92)'}}>{m.label}</span>
-                              {active && <span style={{fontSize:9,letterSpacing:'0.12em',textTransform:'uppercase',color:'#a78bfa',background:'rgba(167,139,250,0.15)',borderRadius:4,padding:'1px 5px'}}>aktywny</span>}
+                              {active && <span style={{fontSize:9,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgb(var(--accent-rgb))',background:'rgba(var(--accent-rgb),0.15)',borderRadius:4,padding:'1px 5px'}}>aktywny</span>}
                             </span>
                             <span style={{fontSize:12,color:'rgba(255,255,255,0.45)',lineHeight:1.4,display:'block',marginTop:2}}>{m.desc}</span>
                           </span>
@@ -429,7 +449,7 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
             <button
               onClick={() => setShowPersona(true)}
               className="text-xs flex items-center gap-1"
-              style={{color: activeConv?.systemPrompt ? 'rgba(167,139,250,0.9)' : 'rgba(255,255,255,0.3)'}}
+              style={{color: activeConv?.systemPrompt ? 'rgba(var(--accent-rgb),0.9)' : 'rgba(255,255,255,0.3)'}}
               title="Ustaw personę"
             >
               🎭 Persona{activeConv?.systemPrompt ? ' •' : ''}
@@ -455,9 +475,9 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
             <CommandPalette
               onClose={() => setPaletteOpen(false)}
               conversations={conversations}
-              models={ALLOWED_MODELS.map(name => ({ name, sizeMB: 0 }))}
+              models={models}
               selectedModel={selectedModel}
-              defaultModel={DEFAULT_MODEL}
+              defaultModel={effectiveDefault}
               onNewChat={handleNew}
               onSelectConversation={handleSelect}
               onSelectModel={handleSelectModel}
@@ -481,8 +501,8 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
                 <div
                   className="max-w-md w-full text-center rounded-3xl px-5 sm:px-7 py-7 sm:py-8"
                   style={{
-                    background:'linear-gradient(160deg,rgba(167,139,250,0.12),rgba(96,165,250,0.06))',
-                    border:'0.5px solid rgba(167,139,250,0.22)',
+                    background:'linear-gradient(160deg,rgba(var(--accent-rgb),0.12),rgba(96,165,250,0.06))',
+                    border:'0.5px solid rgba(var(--accent-rgb),0.22)',
                     backdropFilter:'blur(20px)',
                     boxShadow:'0 8px 40px rgba(120,80,255,0.12)',
                   }}
@@ -543,7 +563,7 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
             >
               <div
                 className="flex items-center gap-2.5 text-xs rounded-full pl-3 pr-3.5 py-2"
-                style={{background:'rgba(167,139,250,0.1)',border:'0.5px solid rgba(167,139,250,0.22)',color:'rgba(255,255,255,0.8)'}}
+                style={{background:'rgba(var(--accent-rgb),0.1)',border:'0.5px solid rgba(var(--accent-rgb),0.22)',color:'rgba(255,255,255,0.8)'}}
               >
                 <ThinkingBars height={13} />
                 <AnimatePresence mode="wait">
@@ -564,7 +584,7 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
                   <>
                     <span style={{color:'rgba(255,255,255,0.25)'}}>·</span>
                     <span style={{fontVariantNumeric:'tabular-nums'}}>
-                      <span style={{fontWeight:600,color:'rgba(167,139,250,0.95)'}}>{liveTokens}</span>{' '}
+                      <span style={{fontWeight:600,color:'rgba(var(--accent-rgb),0.95)'}}>{liveTokens}</span>{' '}
                       <span style={{color:'rgba(255,255,255,0.5)'}}>{plTokens(liveTokens)}</span>
                     </span>
                   </>
@@ -598,7 +618,7 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
               whileTap={{ scale: 0.95 }}
               aria-label="Przewiń na dół"
               className="absolute left-1/2 -translate-x-1/2 z-20 flex items-center justify-center rounded-full"
-              style={{bottom:88,width:36,height:36,background:'rgba(40,36,70,0.85)',backdropFilter:'blur(12px)',border:'0.5px solid rgba(167,139,250,0.35)',boxShadow:'0 6px 20px rgba(0,0,0,0.4)',color:'rgba(255,255,255,0.85)'}}
+              style={{bottom:88,width:36,height:36,background:'rgba(40,36,70,0.85)',backdropFilter:'blur(12px)',border:'0.5px solid rgba(var(--accent-rgb),0.35)',boxShadow:'0 6px 20px rgba(0,0,0,0.4)',color:'rgba(255,255,255,0.85)'}}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="6 9 12 15 18 9" />
@@ -646,7 +666,7 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
                 onClick={() => handleSubmit()}
                 disabled={!input.trim()}
                 className="flex-shrink-0 flex items-center justify-center rounded-xl transition-opacity disabled:opacity-40"
-                style={{width:34,height:34,background:'linear-gradient(135deg,#a78bfa,#60a5fa)',border:'none'}}
+                style={{width:34,height:34,background:'linear-gradient(135deg,rgb(var(--accent-rgb)),rgba(var(--accent-rgb),0.55))',border:'none'}}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>

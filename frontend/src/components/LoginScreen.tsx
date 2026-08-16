@@ -4,9 +4,10 @@ import { fetchToken } from '@/api/chat'
 
 interface LoginScreenProps {
   onLogin: () => void
+  notice?: string | null
 }
 
-export function LoginScreen({ onLogin }: LoginScreenProps) {
+export function LoginScreen({ onLogin, notice }: LoginScreenProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -62,6 +63,16 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             bez cenzury · bez tematów tabu
           </p>
         </div>
+
+        {notice && !error && (
+          <motion.p
+            initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+            className="text-sm text-center mb-4 rounded-lg px-3 py-2"
+            style={{ color: 'rgba(251,191,36,0.9)', background: 'rgba(251,191,36,0.1)', border: '0.5px solid rgba(251,191,36,0.25)' }}
+          >
+            ⏳ {notice}
+          </motion.p>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input

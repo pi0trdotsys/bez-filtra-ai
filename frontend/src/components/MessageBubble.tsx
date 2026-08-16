@@ -67,10 +67,10 @@ export function MessageBubble({ message, isStreaming, isLast, onRegenerate, onEd
           width: 28, height: 28,
           background: isUser
             ? 'rgba(255,255,255,0.1)'
-            : 'linear-gradient(135deg,rgba(167,139,250,0.3),rgba(96,165,250,0.3))',
+            : 'linear-gradient(135deg,rgba(var(--accent-rgb),0.3),rgba(96,165,250,0.3))',
           border: isUser
             ? '0.5px solid rgba(255,255,255,0.15)'
-            : '0.5px solid rgba(167,139,250,0.3)',
+            : '0.5px solid rgba(var(--accent-rgb),0.3)',
         }}
       >
         {isUser ? '👤' : '🐬'}
@@ -81,8 +81,8 @@ export function MessageBubble({ message, isStreaming, isLast, onRegenerate, onEd
           className="px-3 py-2 text-sm leading-relaxed w-full"
           style={{
             borderRadius: isUser ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-            background: isUser ? 'rgba(167,139,250,0.2)' : 'rgba(255,255,255,0.06)',
-            border: isUser ? '0.5px solid rgba(167,139,250,0.3)' : '0.5px solid rgba(255,255,255,0.08)',
+            background: isUser ? 'rgba(var(--accent-rgb),0.2)' : 'rgba(255,255,255,0.06)',
+            border: isUser ? '0.5px solid rgba(var(--accent-rgb),0.3)' : '0.5px solid rgba(255,255,255,0.08)',
             color: 'rgba(255,255,255,0.88)',
             backdropFilter: 'blur(10px)',
           }}
@@ -108,7 +108,7 @@ export function MessageBubble({ message, isStreaming, isLast, onRegenerate, onEd
                 <button
                   onClick={saveEdit}
                   className="text-xs px-2.5 py-1 rounded-md"
-                  style={{ background: 'linear-gradient(135deg,#a78bfa,#60a5fa)', color: '#fff' }}
+                  style={{ background: 'linear-gradient(135deg,rgb(var(--accent-rgb)),rgba(var(--accent-rgb),0.55))', color: '#fff' }}
                 >
                   Zapisz i wyślij
                 </button>

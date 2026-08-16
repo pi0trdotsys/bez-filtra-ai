@@ -1,4 +1,14 @@
 services:
+  # Kontener ollama + rezerwacja GPU nvidia to opcjonalna ścieżka dla hostów
+  # z kartą NVIDIA. Na hostach bez GPU (np. mini-PC na CPU) ten serwis nigdy
+  # nie wystartuje (utknie w "Created") - normalne, po prostu go nie
+  # uruchamiaj (`docker compose up -d backend frontend`, bez `ollama`) i użyj
+  # natywnie zainstalowanego ollama na hoście zamiast tego kontenera. Wtedy
+  # ustaw w docker-compose.override.yml:
+  #   services.backend.environment: OLLAMA_URL=http://172.17.0.1:11434
+  # (172.17.0.1 to domyślny adres bramy mostka Dockera - adres hosta widziany
+  # z wnętrza kontenerów), a na hoście uruchom ollama z OLLAMA_HOST=0.0.0.0,
+  # żeby przyjmował połączenia spoza loopbacku.
   ollama:
     image: ollama/ollama
     container_name: ollama
@@ -23,7 +33,7 @@ services:
     container_name: ai-backend
     environment:
       - OLLAMA_URL=http://ollama:11434
-      - DEFAULT_MODEL=${DEFAULT_MODEL:-huihui_ai/qwen2.5-abliterate:14b}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-huihui_ai/qwen2.5-abliterate:7b}
       - JWT_SECRET=${JWT_SECRET}
       - ACCESS_PASSWORD=${ACCESS_PASSWORD}
       - FRONTEND_URL=${FRONTEND_URL}

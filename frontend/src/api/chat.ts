@@ -1,4 +1,5 @@
 import type { Message, TokenResponse, ChatEvent, MessageStats } from '@/types/chat'
+import { notifyUnauthorized } from '@/lib/session'
 
 const getToken = () => localStorage.getItem('token')
 
@@ -29,6 +30,10 @@ export async function* streamChat(messages: Message[], opts: { model?: string; s
     signal,
   })
 
+  if (res.status === 401) {
+    notifyUnauthorized()
+    throw new Error('Sesja wygasła - zaloguj się ponownie')
+  }
   if (!res.ok) throw new Error('Błąd zapytania')
 
   const reader = res.body!.getReader()

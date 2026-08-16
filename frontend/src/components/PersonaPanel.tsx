@@ -34,7 +34,7 @@ export function PersonaPanel({ value, onSave, onClose }: PersonaPanelProps) {
         style={{
           maxWidth: 480,
           background: 'rgba(30,27,55,0.95)', backdropFilter: 'blur(24px)',
-          border: '0.5px solid rgba(167,139,250,0.3)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+          border: '0.5px solid rgba(var(--accent-rgb),0.3)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
         }}
       >
         <div className="flex items-center gap-2 mb-1">
@@ -42,7 +42,7 @@ export function PersonaPanel({ value, onSave, onClose }: PersonaPanelProps) {
           <h2 className="text-base font-semibold" style={{ color: 'rgba(255,255,255,0.95)' }}>Persona rozmowy</h2>
         </div>
         <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.5)' }}>
-          Dodatkowe instrukcje, jak model ma się zachowywać w <strong style={{color:'rgba(167,139,250,0.9)'}}>tej</strong> rozmowie.
+          Dodatkowe instrukcje, jak model ma się zachowywać w <strong style={{color:'rgba(var(--accent-rgb),0.9)'}}>tej</strong> rozmowie.
           Dotyczy tylko jej. Zostaw puste, by wrócić do domyślnego zachowania.
         </p>
 
@@ -87,7 +87,7 @@ export function PersonaPanel({ value, onSave, onClose }: PersonaPanelProps) {
             <button
               onClick={() => onSave(text)}
               className="text-sm px-4 py-1.5 rounded-lg font-medium"
-              style={{ background: 'linear-gradient(135deg,#a78bfa,#60a5fa)', color: '#fff' }}
+              style={{ background: 'linear-gradient(135deg,rgb(var(--accent-rgb)),rgba(var(--accent-rgb),0.55))', color: '#fff' }}
             >
               Zapisz
             </button>

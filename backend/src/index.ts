@@ -15,7 +15,7 @@ const app = express()
 
 app.set('trust proxy', true)
 const ollama = new Ollama({ host: process.env.OLLAMA_URL || 'http://localhost:11434' })
-const DEFAULT_MODEL = process.env.DEFAULT_MODEL || 'huihui_ai/qwen2.5-abliterate:14b'
+const DEFAULT_MODEL = process.env.DEFAULT_MODEL || 'huihui_ai/qwen2.5-abliterate:7b'
 
 // Opcje generowania per model - balans między jakością a szybkością
 function modelOptions(model: string): Record<string, unknown> {
@@ -137,13 +137,18 @@ const limiter = rateLimit({
 })
 app.use('/api/', limiter)
 
+// 30 dni - na tyle długo, żeby rzadkie logowanie się nie kończyło wygasłym tokenem
+// w trakcie normalnego korzystania. Front dodatkowo "podbija" token przez
+// /api/token/refresh, dopóki jest jeszcze ważny (patrz frontend/src/lib/session.ts).
+const TOKEN_TTL = '30d'
+
 app.post('/api/token', (req, res) => {
   const { password } = req.body as { password: string }
   if (password !== ACCESS_PASSWORD) {
     res.status(401).json({ error: 'Nieprawidłowe hasło' })
     return
   }
-  const token = jwt.sign({}, JWT_SECRET, { expiresIn: '7d' })
+  const token = jwt.sign({}, JWT_SECRET, { expiresIn: TOKEN_TTL })
   res.json({ token })
 })
 
@@ -160,6 +165,14 @@ const requireAuth = (req: express.Request, res: express.Response, next: express.
     res.status(401).json({ error: 'Nieprawidłowy token' })
   }
 }
+
+// Odśwież token, dopóki poprzedni jest jeszcze ważny (sliding expiration).
+// Front wywołuje to przy starcie appki i cyklicznie w tle - dzięki temu sesja
+// nie wygasa, o ile użytkownik zajrzy do apki choć raz na TOKEN_TTL.
+app.post('/api/token/refresh', requireAuth, (_req, res) => {
+  const token = jwt.sign({}, JWT_SECRET, { expiresIn: TOKEN_TTL })
+  res.json({ token })
+})
 
 app.post('/api/chat', requireAuth, async (req, res) => {
   const { messages, model = DEFAULT_MODEL, system } = req.body as {
@@ -210,19 +223,32 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   res.write(': połączono\n\n')
   let firstTokenSeen = false
   const heartbeat = setInterval(() => {
-    if (!firstTokenSeen) res.write(': ping\n\n')
+    if (!res.writableEnded && !firstTokenSeen) res.write(': ping\n\n')
   }, 15000)
 
   const started = Date.now()
   let answer = ''
+  // Gdy klient przerwie (przycisk "stop" albo zamknięcie karty), fetch po jego
+  // stronie się zrywa, co Express widzi jako zamknięcie połączenia. Bez tego
+  // Ollama (OLLAMA_NUM_PARALLEL=1) dalej dłubałaby nad "widmowym" zapytaniem,
+  // blokując kolejne wiadomości aż do naturalnego końca generacji.
+  let clientAborted = false
+  let abortStream: (() => void) | undefined
+  req.on('close', () => {
+    if (!res.writableEnded) {
+      clientAborted = true
+      abortStream?.()
+    }
+  })
   try {
     const stream = await ollama.chat({ model, messages: messagesWithSystem, stream: true, options: modelOptions(model) })
+    abortStream = () => stream.abort()
     for await (const chunk of stream) {
       const content = chunk.message.content
       if (content) {
         firstTokenSeen = true
         answer += content
-        res.write(`data: ${JSON.stringify({ content })}\n\n`)
+        if (!res.writableEnded) res.write(`data: ${JSON.stringify({ content })}\n\n`)
       }
       if (chunk.done) {
         const wallMs = Date.now() - started
@@ -236,7 +262,9 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         const stats: ChatStats = { wallMs, loadMs, promptTok, promptMs, genTok, genSec, tps }
         const { energyKWh, waterL } = computeFootprint(wallMs)
         // Wyślij statystyki do klienta (licznik tokenów + zużycie zasobów w UI)
-        res.write(`data: ${JSON.stringify({ stats: { promptTok, genTok, tps, responseTimeMs: wallMs, energyKWh, waterL } })}\n\n`)
+        if (!res.writableEnded) {
+          res.write(`data: ${JSON.stringify({ stats: { promptTok, genTok, tps, responseTimeMs: wallMs, energyKWh, waterL } })}\n\n`)
+        }
         const summary = buildSummary(stats)
         log(
           `✓ done | ${wallMs}ms (load ${loadMs.toFixed(0)}ms) | ` +
@@ -261,22 +289,36 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         })
       }
     }
-    res.write('data: [DONE]\n\n')
+    if (!res.writableEnded) res.write('data: [DONE]\n\n')
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err)
-    log(`✗ Ollama error po ${Date.now() - started}ms: ${errMsg}`)
-    await logConversation({
-      ts: new Date().toISOString(),
-      ip: req.ip,
-      model,
-      question: lastUser,
-      answer,
-      error: errMsg,
-    })
-    res.write(`data: ${JSON.stringify({ error: errMsg })}\n\n`)
+    if (clientAborted) {
+      // Użytkownik kliknął stop / zamknął kartę - to nie jest błąd, tylko
+      // oczekiwane przerwanie strumienia z Ollamy (stream.abort() powyżej).
+      log(`⏹ przerwano przez klienta po ${Date.now() - started}ms`)
+      await logConversation({
+        ts: new Date().toISOString(),
+        ip: req.ip,
+        model,
+        question: lastUser,
+        answer,
+        error: 'przerwano przez klienta',
+      })
+    } else {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      log(`✗ Ollama error po ${Date.now() - started}ms: ${errMsg}`)
+      await logConversation({
+        ts: new Date().toISOString(),
+        ip: req.ip,
+        model,
+        question: lastUser,
+        answer,
+        error: errMsg,
+      })
+      if (!res.writableEnded) res.write(`data: ${JSON.stringify({ error: errMsg })}\n\n`)
+    }
   } finally {
     clearInterval(heartbeat)
-    res.end()
+    if (!res.writableEnded) res.end()
   }
 })
 
