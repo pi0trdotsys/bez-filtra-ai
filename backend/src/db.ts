@@ -2,7 +2,14 @@ import { Pool } from 'pg'
 
 // Jedno źródło prawdy dla rozmów + statystyk - wcześniej JSONL na dysku,
 // teraz Postgres (łatwiej filtrować, agregować, robić staty per model/dzień).
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+//
+// Celowo BEZ connectionString/DATABASE_URL zbudowanego ze sklejonych
+// user:hasło@host - hasło z generatora może zawierać "/", "@", ":" czy "?",
+// co rozjeżdża parsowanie URL-a (realnie się zdarzyło: pg rzucał "Invalid
+// URL", baza nigdy się nie łączyła, mimo że sam Postgres wstawał poprawnie).
+// `pg.Pool()` bez argumentów czyta natywnie zmienne PGHOST/PGPORT/PGUSER/
+// PGPASSWORD/PGDATABASE (ustawiane w docker-compose.yml) - zero encodowania.
+const pool = new Pool()
 
 pool.on('error', err => {
   console.log(`[${new Date().toISOString()}] ✗ Postgres: błąd puli połączeń: ${err.message}`)

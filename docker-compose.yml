@@ -62,7 +62,14 @@ services:
       - ACCESS_PASSWORD=${ACCESS_PASSWORD}
       - ADMIN_PIN=${ADMIN_PIN}
       - FRONTEND_URL=${FRONTEND_URL}
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-aichat}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aichat}
+      # Osobne pola zamiast sklejonego postgresql://user:hasło@host - hasło
+      # z generatora może zawierać "/", "@", ":" itp., co łamie parsowanie
+      # URL-a (pg czyta te zmienne natywnie, patrz backend/src/db.ts).
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGUSER=${POSTGRES_USER:-aichat}
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+      - PGDATABASE=${POSTGRES_DB:-aichat}
     ports:
       - "3001:3001"
     depends_on:
