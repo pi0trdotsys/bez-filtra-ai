@@ -272,12 +272,42 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
     : !health.modelLoaded ? '#f59e0b'
     : '#22c55e'
 
+  const accentRgb = describeModel(selectedModel).accentRgb
+
   return (
     <div className="flex h-screen w-screen overflow-hidden" style={{background:'linear-gradient(135deg,#0f0c29,#302b63,#24243e)'}}>
+      {/* Ambient glow w kolorze aktywnego modelu - płynny crossfade przy zmianie.
+          Kolor wstrzyknięty dosłownie (nie przez zmienną), żeby stary i nowy
+          węzeł miały różne kolory i AnimatePresence mógł je przenikać. */}
+      <AnimatePresence>
+        <motion.div
+          key={accentRgb}
+          className="absolute inset-0 pointer-events-none"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.8, ease: 'easeInOut' }}
+          style={{background:`radial-gradient(ellipse at 15% 45%,rgba(${accentRgb},0.22) 0%,transparent 55%),radial-gradient(ellipse at 85% 25%,rgba(${accentRgb},0.10) 0%,transparent 50%)`}}
+        />
+      </AnimatePresence>
+
+      {/* Górna listwa akcentu - ramuje całą apkę kolorem modelu; przy każdej
+          zmianie modelu przez listwę przebiega jednorazowy błysk (sweep). */}
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{background:'radial-gradient(ellipse at 20% 50%,rgba(120,80,255,0.12) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(0,180,255,0.08) 0%,transparent 50%)'}}
-      />
+        className="absolute top-0 left-0 right-0 z-40 pointer-events-none overflow-hidden"
+        style={{height:2,background:'rgba(var(--accent-rgb),0.4)',transition:'background 0.6s ease'}}
+      >
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={selectedModel}
+            className="absolute inset-y-0"
+            initial={{ left: '-40%', opacity: 0 }}
+            animate={{ left: '100%', opacity: [0, 1, 1, 0] }}
+            transition={{ duration: 0.9, ease: 'easeInOut' }}
+            style={{width:'40%',background:'linear-gradient(90deg,transparent,rgb(var(--accent-rgb)),transparent)',boxShadow:'0 0 16px rgb(var(--accent-rgb))'}}
+          />
+        </AnimatePresence>
+      </div>
 
       <motion.div
         className="hidden md:flex h-full overflow-hidden"
@@ -353,7 +383,7 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
             <button
               onClick={() => setModelPickerOpen(o => !o)}
               className="flex items-center gap-2 text-xs rounded-full pl-3 pr-2.5 py-1.5"
-              style={{background:'rgba(var(--accent-rgb),0.1)',border:'0.5px solid rgba(var(--accent-rgb),0.22)',color:'rgba(255,255,255,0.85)'}}
+              style={{background:'rgba(var(--accent-rgb),0.16)',border:'0.5px solid rgba(var(--accent-rgb),0.4)',color:'rgba(255,255,255,0.9)',boxShadow:'0 0 12px rgba(var(--accent-rgb),0.15)',transition:'background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease'}}
             >
               <motion.span
                 animate={health.status === 'checking' ? { opacity: [0.4,1,0.4] } : { opacity: 1 }}
