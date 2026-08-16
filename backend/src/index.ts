@@ -82,6 +82,13 @@ const limiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
   message: { error: 'Za dużo zapytań, poczekaj chwilę.' },
+  // trust proxy: true (wyżej) jest celowe pod Cloudflare Tunnel + nginx, ale
+  // express-rate-limit v7+ uznaje tę kombinację za potencjalnie niebezpieczną
+  // i domyślnie rzuca ValidationError zamiast tylko ostrzec. Nie znamy tu
+  // dokładnie liczby przeskoków w łańcuchu Cloudflare -> nginx -> backend,
+  // więc zamiast zgadywać i ryzykować zepsucie limitowania per-IP, wyciszamy
+  // samą walidację - zachowanie limitera się nie zmienia.
+  validate: { trustProxy: false },
 })
 app.use('/api/', limiter)
 
@@ -316,17 +323,20 @@ app.get('/api/models', requireAuth, async (_req, res) => {
   }
 })
 
-// Czekamy na Postgres (z retry), zanim zaczniemy przyjmować ruch - inaczej
-// pierwsze rozmowy tuż po starcie mogłyby się nie zalogować (tabela jeszcze
-// nie istnieje). Sam czat i tak działa niezależnie od logowania.
-initDb()
-  .catch(err => log(`✗ Postgres: rezygnuję po serii nieudanych prób - ${err instanceof Error ? err.message : String(err)}`))
-  .finally(() => {
-    const server = app.listen(3001, () => console.log('Backend działa na porcie 3001'))
+// Serwer HTTP startuje NATYCHMIAST, niezależnie od stanu Postgresa - czat
+// przez Ollamę nie ma nic wspólnego z logowaniem i nie może czekać na bazę.
+// (Wcześniej app.listen() czekał na initDb().finally() - gdy Postgres padał,
+// backend nie zaczynał nasłuchiwać nawet przez ~70s serii retry, co wywalało
+// health-check w redeploy.sh, mimo że sam czat był całkowicie sprawny.)
+const server = app.listen(3001, () => console.log('Backend działa na porcie 3001'))
 
-    // Brak limitów czasu - każde zapytanie musi otrzymać odpowiedź, choćby po kilku minutach
-    server.requestTimeout = 0
-    server.headersTimeout = 0
-    server.timeout = 0
-    server.keepAliveTimeout = 0
-  })
+// Brak limitów czasu - każde zapytanie musi otrzymać odpowiedź, choćby po kilku minutach
+server.requestTimeout = 0
+server.headersTimeout = 0
+server.timeout = 0
+server.keepAliveTimeout = 0
+
+// Postgres inicjalizujemy w tle - jeśli padnie/jest wolny, logowanie rozmów
+// po prostu poczeka albo się nie uda (logConversation ma własny try/catch),
+// ale to nigdy nie blokuje samego czatu.
+initDb().catch(err => log(`✗ Postgres: rezygnuję po serii nieudanych prób - ${err instanceof Error ? err.message : String(err)}`))
