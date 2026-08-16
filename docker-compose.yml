@@ -60,6 +60,7 @@ services:
       - DEFAULT_MODEL=${DEFAULT_MODEL:-huihui_ai/qwen2.5-abliterate:7b}
       - JWT_SECRET=${JWT_SECRET}
       - ACCESS_PASSWORD=${ACCESS_PASSWORD}
+      - ADMIN_PIN=${ADMIN_PIN}
       - FRONTEND_URL=${FRONTEND_URL}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-aichat}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aichat}
     ports:

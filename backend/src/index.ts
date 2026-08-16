@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit'
 import jwt from 'jsonwebtoken'
 import { Ollama } from 'ollama'
 import { Agent, setGlobalDispatcher } from 'undici'
-import { initDb, logConversation, type ChatStats } from './db'
+import { initDb, logConversation, getConversationLogs, getAdminStats, type ChatStats } from './db'
 
 // Wyłącz timeouty po stronie klienta HTTP (fetch używany przez Ollamę),
 // żeby długie generacje na wolnym CPU nigdy nie były przerywane.
@@ -38,6 +38,10 @@ const computeFootprint = (wallMs: number) => {
 }
 const JWT_SECRET = process.env.JWT_SECRET!
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD!
+// Osobny sekret od hasła do czatu - druga warstwa dostępu do panelu z podglądem
+// WSZYSTKICH pytań/odpowiedzi i statystyk. Jeśli nieustawiony, panel jest
+// twardo wyłączony (login zawsze odrzuca), zamiast np. akceptować pusty PIN.
+const ADMIN_PIN = process.env.ADMIN_PIN || null
 
 const log = (msg: string) => console.log(`[${new Date().toISOString()}] ${msg}`)
 
@@ -127,6 +131,78 @@ const requireAuth = (req: express.Request, res: express.Response, next: express.
 app.post('/api/token/refresh', requireAuth, (_req, res) => {
   const token = jwt.sign({}, JWT_SECRET, { expiresIn: TOKEN_TTL })
   res.json({ token })
+})
+
+// ── Panel admina: druga warstwa dostępu (PIN) do podglądu WSZYSTKICH pytań/
+// odpowiedzi i statystyk. Wymaga najpierw zwykłego zalogowania (requireAuth),
+// a token wydany tutaj ma osobną, krótszą ważność i własną flagę `admin`.
+const ADMIN_TOKEN_TTL = '12h'
+
+// PIN jest krótki, więc limit dużo ostrzejszy niż na zwykły login -
+// utrudnia zgadywanie siłowe.
+const adminLoginLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 8,
+  message: { error: 'Za dużo prób, spróbuj później.' },
+  validate: { trustProxy: false },
+})
+
+app.post('/api/admin/login', requireAuth, adminLoginLimiter, (req, res) => {
+  const { pin } = req.body as { pin?: string }
+  if (!ADMIN_PIN) {
+    res.status(503).json({ error: 'Panel admina nie jest skonfigurowany (brak ADMIN_PIN w .env)' })
+    return
+  }
+  if (pin !== ADMIN_PIN) {
+    log(`✗ Panel admina: nieprawidłowy PIN | ip=${req.ip}`)
+    res.status(401).json({ error: 'Nieprawidłowy PIN' })
+    return
+  }
+  log(`✓ Panel admina: zalogowano | ip=${req.ip}`)
+  const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: ADMIN_TOKEN_TTL })
+  res.json({ token })
+})
+
+const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const token = req.headers.authorization?.split(' ')[1]
+  if (!token) {
+    res.status(401).json({ error: 'Brak tokenu' })
+    return
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET)
+    if (typeof decoded !== 'object' || decoded.admin !== true) {
+      res.status(403).json({ error: 'Brak uprawnień' })
+      return
+    }
+    next()
+  } catch {
+    res.status(401).json({ error: 'Nieprawidłowy token' })
+  }
+}
+
+app.get('/api/admin/conversations', requireAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50))
+    const offset = Math.max(0, Number(req.query.offset) || 0)
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : ''
+    const model = typeof req.query.model === 'string' ? req.query.model.trim() : ''
+    const result = await getConversationLogs({ limit, offset, q: q || undefined, model: model || undefined })
+    res.json(result)
+  } catch (err) {
+    log(`✗ Admin/conversations: ${err instanceof Error ? err.message : String(err)}`)
+    res.status(503).json({ error: 'Baza niedostępna' })
+  }
+})
+
+app.get('/api/admin/stats', requireAdmin, async (_req, res) => {
+  try {
+    const stats = await getAdminStats()
+    res.json(stats)
+  } catch (err) {
+    log(`✗ Admin/stats: ${err instanceof Error ? err.message : String(err)}`)
+    res.status(503).json({ error: 'Baza niedostępna' })
+  }
 })
 
 app.post('/api/chat', requireAuth, async (req, res) => {

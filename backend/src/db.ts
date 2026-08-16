@@ -111,4 +111,97 @@ export async function logConversation(record: ConvoRecord): Promise<void> {
   }
 }
 
+// ── Panel admina (podgląd rozmów + statystyk po PIN-ie) ──────────────────
+
+export interface ConversationLogRow {
+  id: number
+  ts: string
+  ip: string | null
+  model: string
+  question: string
+  answer: string
+  error: string | null
+  wallMs: number | null
+  promptTok: number | null
+  genTok: number | null
+  tps: number | null
+  energyKWh: number | null
+  waterL: number | null
+}
+
+// Proste filtrowanie po tekście (ILIKE) i modelu - wystarcza przy skali
+// jednego self-hosted czatu, nie ma potrzeby na pełnotekstowy indeks.
+export async function getConversationLogs(opts: {
+  limit: number
+  offset: number
+  q?: string
+  model?: string
+}): Promise<{ rows: ConversationLogRow[]; total: number }> {
+  const conditions: string[] = []
+  const params: unknown[] = []
+  if (opts.q) {
+    params.push(`%${opts.q}%`)
+    conditions.push(`(question ILIKE $${params.length} OR answer ILIKE $${params.length})`)
+  }
+  if (opts.model) {
+    params.push(opts.model)
+    conditions.push(`model = $${params.length}`)
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  const totalRes = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM conversation_logs ${where}`, params)
+  const total = totalRes.rows[0]?.n ?? 0
+
+  const rowsRes = await pool.query<ConversationLogRow>(
+    `SELECT id::int AS id, ts, ip, model, question, answer, error,
+            wall_ms AS "wallMs", prompt_tok AS "promptTok", gen_tok AS "genTok",
+            tps::float AS "tps", energy_kwh::float AS "energyKWh", water_l::float AS "waterL"
+     FROM conversation_logs
+     ${where}
+     ORDER BY ts DESC
+     LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, opts.limit, opts.offset]
+  )
+  return { rows: rowsRes.rows, total }
+}
+
+export interface AdminStats {
+  totals: { conversations: number; promptTok: number; genTok: number; energyKWh: number; waterL: number }
+  perModel: { model: string; count: number; avgTps: number | null; totalTokens: number; energyKWh: number }[]
+  daily: { date: string; count: number }[]
+}
+
+export async function getAdminStats(): Promise<AdminStats> {
+  const totalsRes = await pool.query(`
+    SELECT count(*)::int AS conversations,
+           coalesce(sum(prompt_tok),0)::int AS "promptTok",
+           coalesce(sum(gen_tok),0)::int AS "genTok",
+           coalesce(sum(energy_kwh),0)::float AS "energyKWh",
+           coalesce(sum(water_l),0)::float AS "waterL"
+    FROM conversation_logs
+  `)
+  const perModelRes = await pool.query(`
+    SELECT model,
+           count(*)::int AS count,
+           round(avg(tps)::numeric,1)::float AS "avgTps",
+           (coalesce(sum(prompt_tok),0) + coalesce(sum(gen_tok),0))::int AS "totalTokens",
+           coalesce(sum(energy_kwh),0)::float AS "energyKWh"
+    FROM conversation_logs
+    GROUP BY model
+    ORDER BY count DESC
+  `)
+  const dailyRes = await pool.query(`
+    SELECT to_char(date_trunc('day', ts), 'YYYY-MM-DD') AS date, count(*)::int AS count
+    FROM conversation_logs
+    WHERE ts > now() - interval '14 days'
+    GROUP BY 1
+    ORDER BY 1
+  `)
+  return {
+    totals: totalsRes.rows[0] as AdminStats['totals'],
+    perModel: perModelRes.rows,
+    daily: dailyRes.rows,
+  }
+}
+
 export { pool }

@@ -6,6 +6,7 @@ import { MessageBubble } from './MessageBubble'
 import { Sidebar } from './Sidebar'
 import { PersonaPanel } from './PersonaPanel'
 import { CommandPalette } from './CommandPalette'
+import { AdminPanel } from './AdminPanel'
 import { useCompletionNotify } from '@/hooks/useCompletionNotify'
 import { useModels } from '@/hooks/useModels'
 import { ModelSwitchFX } from './ModelSwitchFX'
@@ -202,6 +203,7 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
   }
 
   const [showPersona, setShowPersona] = useState(false)
+  const [showAdmin, setShowAdmin] = useState(false)
   const handlePersonaChange = (text: string) => {
     setConversations(prev => prev.map(c => (c.id === activeId ? { ...c, systemPrompt: text.trim() || undefined } : c)))
   }
@@ -317,6 +319,7 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
           onDelete={handleDelete}
           onRename={handleRename}
           onLogout={onLogout}
+          onOpenAdmin={() => setShowAdmin(true)}
         />
       </motion.div>
 
@@ -331,6 +334,7 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
           onDelete={handleDelete}
           onRename={handleRename}
           onLogout={onLogout}
+          onOpenAdmin={() => setShowAdmin(true)}
         />
       </div>
 
@@ -499,6 +503,10 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
               onClose={() => setShowPersona(false)}
             />
           )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
         </AnimatePresence>
 
         <AnimatePresence>

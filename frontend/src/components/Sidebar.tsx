@@ -12,9 +12,10 @@ interface SidebarProps {
   onDelete: (id: string) => void
   onRename: (id: string, title: string) => void
   onLogout: () => void
+  onOpenAdmin: () => void
 }
 
-export function Sidebar({ isOpen, onClose, conversations, activeId, onSelect, onNew, onDelete, onRename, onLogout }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, conversations, activeId, onSelect, onNew, onDelete, onRename, onLogout, onOpenAdmin }: SidebarProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
 
@@ -163,6 +164,13 @@ export function Sidebar({ isOpen, onClose, conversations, activeId, onSelect, on
         </div>
 
         <div style={{padding:'10px 8px',borderTop:'0.5px solid rgba(255,255,255,0.06)'}}>
+          <button
+            onClick={onOpenAdmin}
+            className="w-full flex items-center gap-2 text-xs px-3 py-2 rounded-lg transition-colors mb-1.5"
+            style={{color:'rgba(255,255,255,0.4)',border:'0.5px solid rgba(255,255,255,0.08)'}}
+          >
+            📊 Statystyki
+          </button>
           <button
             onClick={onLogout}
             className="w-full flex items-center gap-2 text-xs px-3 py-2 rounded-lg transition-colors"
