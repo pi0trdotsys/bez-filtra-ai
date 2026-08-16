@@ -83,6 +83,15 @@ export async function initDb(retries = 10, delayMs = 2000): Promise<void> {
   }
 }
 
+// wall_ms/load_ms/prompt_ms w schemacie są INTEGER, ale loadMs/promptMs
+// przychodzą z Ollamy jako nanosekundy/1e6 - prawie nigdy nie wychodzi
+// równa liczba (np. 8487.52356). Bez zaokrąglenia Postgres odrzuca insert
+// ("invalid input syntax for type integer") - cicho, bo logConversation
+// jest best-effort, więc żadna rozmowa by się nie zalogowała, a nic by
+// tego nie zasygnalizowało poza logiem backendu.
+const roundOrNull = (n: number | null | undefined): number | null =>
+  n == null ? null : Math.round(n)
+
 // Best-effort: błąd zapisu loguje się, ale nigdy nie wywraca odpowiedzi czatu -
 // logowanie jest telemetrią, nie krytyczną ścieżką dla użytkownika.
 export async function logConversation(record: ConvoRecord): Promise<void> {
@@ -100,10 +109,10 @@ export async function logConversation(record: ConvoRecord): Promise<void> {
         record.question,
         record.answer,
         record.error ?? null,
-        record.stats?.wallMs ?? null,
-        record.stats?.loadMs ?? null,
+        roundOrNull(record.stats?.wallMs),
+        roundOrNull(record.stats?.loadMs),
         record.stats?.promptTok ?? null,
-        record.stats?.promptMs ?? null,
+        roundOrNull(record.stats?.promptMs),
         record.stats?.genTok ?? null,
         record.stats?.genSec ?? null,
         record.stats?.tps ?? null,

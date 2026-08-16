@@ -55,11 +55,15 @@ CSV="/tmp/migrate-logs.$$.csv"
 # @csv renderuje null jako gołe puste pole (dopasowuje się do NULL ''
 # poniżej), a "" jako pole w cudzysłowie (Postgres bierze to dosłownie jako
 # pusty string, nie NULL - integer nie przyjmie pustego stringa i COPY padnie).
+# Drugie WAŻNE: wall_ms/load_ms/prompt_ms w schemacie to INTEGER, a w JSONL
+# loadMs/promptMs to nanosekundy/1e6 - prawie nigdy nie wychodzi liczba
+# całkowita (np. 8487.52356) - stąd `rnd` (zaokrąglenie, z zachowaniem null).
 jq -r '
+  def rnd: if . == null then null else round end;
   [
     .ts, .ip, .model, .question, .answer, .error,
-    .stats.wallMs, .stats.loadMs, .stats.promptTok,
-    .stats.promptMs, .stats.genTok, .stats.genSec, .stats.tps,
+    (.stats.wallMs | rnd), (.stats.loadMs | rnd), .stats.promptTok,
+    (.stats.promptMs | rnd), .stats.genTok, .stats.genSec, .stats.tps,
     .footprint.energyKWh, .footprint.waterL, .footprint.powerWatts,
     .summary
   ] | @csv
