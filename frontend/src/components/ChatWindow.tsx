@@ -8,6 +8,7 @@ import { PersonaPanel } from './PersonaPanel'
 import { CommandPalette } from './CommandPalette'
 import { useCompletionNotify } from '@/hooks/useCompletionNotify'
 import { useModels } from '@/hooks/useModels'
+import { ModelSwitchFX } from './ModelSwitchFX'
 import { ThinkingBars } from './ThinkingIndicator'
 import {
   loadConversations,
@@ -275,8 +276,9 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
   const accentRgb = describeModel(selectedModel).accentRgb
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden" style={{background:'linear-gradient(135deg,#0f0c29,#302b63,#24243e)'}}>
+    <div className="relative flex h-screen w-screen overflow-hidden" style={{background:'linear-gradient(135deg,#0f0c29,#302b63,#24243e)'}}>
       {/* Ambient glow w kolorze aktywnego modelu - płynny crossfade przy zmianie.
+          screen blend = realnie "świeci" na ciemnym tle zamiast płasko barwić.
           Kolor wstrzyknięty dosłownie (nie przez zmienną), żeby stary i nowy
           węzeł miały różne kolory i AnimatePresence mógł je przenikać. */}
       <AnimatePresence>
@@ -287,27 +289,16 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.8, ease: 'easeInOut' }}
-          style={{background:`radial-gradient(ellipse at 15% 45%,rgba(${accentRgb},0.22) 0%,transparent 55%),radial-gradient(ellipse at 85% 25%,rgba(${accentRgb},0.10) 0%,transparent 50%)`}}
+          style={{
+            background:`radial-gradient(ellipse at 15% 45%,rgba(${accentRgb},0.28) 0%,transparent 55%),radial-gradient(ellipse at 85% 25%,rgba(${accentRgb},0.14) 0%,transparent 50%)`,
+            mixBlendMode: 'screen',
+          }}
         />
       </AnimatePresence>
 
-      {/* Górna listwa akcentu - ramuje całą apkę kolorem modelu; przy każdej
-          zmianie modelu przez listwę przebiega jednorazowy błysk (sweep). */}
-      <div
-        className="absolute top-0 left-0 right-0 z-40 pointer-events-none overflow-hidden"
-        style={{height:2,background:'rgba(var(--accent-rgb),0.4)',transition:'background 0.6s ease'}}
-      >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={selectedModel}
-            className="absolute inset-y-0"
-            initial={{ left: '-40%', opacity: 0 }}
-            animate={{ left: '100%', opacity: [0, 1, 1, 0] }}
-            transition={{ duration: 0.9, ease: 'easeInOut' }}
-            style={{width:'40%',background:'linear-gradient(90deg,transparent,rgb(var(--accent-rgb)),transparent)',boxShadow:'0 0 16px rgb(var(--accent-rgb))'}}
-          />
-        </AnimatePresence>
-      </div>
+      {/* "System się przestraja" - pełnoekranowy skan + błysk narożników HUD,
+          za każdą zmianą modelu (patrz ModelSwitchFX.tsx). */}
+      <ModelSwitchFX triggerKey={selectedModel} />
 
       <motion.div
         className="hidden md:flex h-full overflow-hidden"
@@ -380,6 +371,16 @@ export function ChatWindow({ onLogout }: { onLogout: () => void }) {
 
           {/* Picker modelu */}
           <div className="relative">
+            {/* Puls potwierdzenia - pierścień wychodzi z przycisku i gaśnie,
+                dokładnie stąd bierze się reszta efektu (ModelSwitchFX). */}
+            <motion.span
+              key={selectedModel + '-ring'}
+              className="absolute inset-0 rounded-full pointer-events-none"
+              initial={{ opacity: 0.8, scale: 1 }}
+              animate={{ opacity: 0, scale: 1.9 }}
+              transition={{ duration: 0.55, ease: 'easeOut' }}
+              style={{ border: '1.5px solid rgb(var(--accent-rgb))' }}
+            />
             <button
               onClick={() => setModelPickerOpen(o => !o)}
               className="flex items-center gap-2 text-xs rounded-full pl-3 pr-2.5 py-1.5"
